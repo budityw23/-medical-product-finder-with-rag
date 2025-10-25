@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { AppService, HealthResponse } from './app.service';
 
 @Controller()
 export class AppController {
@@ -11,11 +11,7 @@ export class AppController {
   }
 
   @Get('health')
-  getHealth() {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      service: 'medical-product-finder-api',
-    };
+  async getHealth(): Promise<HealthResponse> {
+    return this.appService.getHealth();
   }
 }
