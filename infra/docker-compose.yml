@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL with pgvector extension
   db:
@@ -27,7 +25,9 @@ services:
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
+      target: builder
     container_name: medical-finder-api
+    working_dir: /app/apps/api
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
@@ -44,7 +44,7 @@ services:
         condition: service_healthy
     networks:
       - medical-finder-network
-    command: sh -c "npx prisma migrate deploy && npm run dev"
+    command: sh -c "cd /app && npx prisma migrate deploy && cd /app/apps/api && npm run dev"
 
   # React Frontend (Vite)
   frontend:
