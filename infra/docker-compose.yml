@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: medical-finder-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-medical_finder}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../prisma/init-extensions.sql:/docker-entrypoint-initdb.d/init-extensions.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medical-finder-network
+
+  # NestJS API
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    container_name: medical-finder-api
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-medical_finder}?schema=public
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      FRONTEND_URL: http://localhost:5173
+    ports:
+      - '3000:3000'
+    volumes:
+      - ../apps/api/src:/app/apps/api/src
+      - ../prisma:/app/prisma
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - medical-finder-network
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+
+  # React Frontend (Vite)
+  frontend:
+    build:
+      context: ..
+      dockerfile: apps/frontend/Dockerfile
+      target: builder
+    container_name: medical-finder-frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:3000
+    ports:
+      - '5173:5173'
+    volumes:
+      - ../apps/frontend/src:/app/apps/frontend/src
+      - ../apps/frontend/public:/app/apps/frontend/public
+      - ../apps/frontend/index.html:/app/apps/frontend/index.html
+    depends_on:
+      - api
+    networks:
+      - medical-finder-network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  medical-finder-network:
+    driver: bridge

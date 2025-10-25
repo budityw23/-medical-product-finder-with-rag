@@ -1,0 +1,16 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Phase 2: Database models will be defined here
+// - Product model (id, name, category, manufacturer, price, description, etc.)
+// - Document model (id, productId, title, content, etc.)
+// - DocumentChunk model (id, documentId, chunkIndex, text, embedding vector(1536), etc.)
