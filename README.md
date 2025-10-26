@@ -1,246 +1,352 @@
 # Medical Product Finder with RAG
 
-A smart medical product catalog with AI-powered search using Retrieval-Augmented Generation (RAG). This project demonstrates a modern full-stack application with NestJS, React, PostgreSQL with pgvector, and OpenAI integration.
+A smart medical product catalog with AI-powered search using Retrieval-Augmented Generation (RAG). Browse 20 medical devices across 5 categories with intelligent search capabilities powered by OpenAI embeddings and pgvector.
 
-## Tech Stack
+**Live Demo**: Browse products at `http://localhost:5173` after setup.
 
-### Frontend
-- React 18 + Vite + TypeScript
-- TailwindCSS + shadcn/ui
-- React Query for state management
-- React Router for navigation
+## ✨ Features
 
-### Backend
-- NestJS + TypeScript
-- Prisma ORM
-- OpenAI API (embeddings + chat completions)
-- Class-validator for validation
+- 🏥 **Product Catalog**: Browse 20 medical devices (Cardiology, Orthopedic, Neurology, Imaging, Surgical)
+- 🔍 **Search & Filter**: Search by keyword and filter by category (Phase 8 - Coming Soon)
+- 🤖 **AI-Powered Q&A**: Ask natural language questions about products with RAG (Phase 9 - Coming Soon)
+- 📱 **Responsive Design**: Mobile-first UI with shadcn/ui components
+- ⚡ **Fast & Cached**: React Query for optimized data fetching
+- 🎨 **Modern UI**: Beautiful interface with Tailwind CSS
 
-### Database
-- PostgreSQL 16
-- pgvector extension for vector similarity search
-
-### Infrastructure
-- Docker + Docker Compose
-- npm workspaces (monorepo)
-
-## Project Structure
-
-```
-.
-├── apps/
-│   ├── api/                    # NestJS backend
-│   │   ├── src/
-│   │   ├── Dockerfile
-│   │   └── package.json
-│   └── frontend/               # React frontend
-│       ├── src/
-│       ├── Dockerfile
-│       ├── nginx.conf
-│       └── package.json
-├── prisma/
-│   ├── schema.prisma          # Database schema
-│   ├── migrations/            # Migration files
-│   └── init-extensions.sql    # pgvector setup
-├── scripts/
-│   ├── seed.ts                # Seed sample products
-│   └── ingest.ts              # Generate and store embeddings
-├── infra/
-│   └── docker-compose.yml     # Local development setup
-├── docs/                      # Documentation
-├── .env.example               # Environment variables template
-├── package.json               # Root workspace config
-└── README.md
-```
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
-- npm 10+
-- Docker and Docker Compose
-- OpenAI API key (for RAG features)
+- **Node.js 20+** and **npm 10+**
+- **Docker** and **Docker Compose**
+- **OpenAI API key** (for RAG features in Phase 9)
 
 ### Installation
 
-1. Clone the repository:
 ```bash
+# 1. Clone the repository
 git clone <repository-url>
 cd medical-product-finder-with-rag
-```
 
-2. Copy environment variables:
-```bash
+# 2. Copy environment variables
 cp .env.example .env
+
+# 3. Add your OpenAI API key to .env
+# OPENAI_API_KEY=sk-your-key-here
+
+# 4. Install dependencies
+npm install
+
+# 5. Start all services with Docker
+npm run docker:up
 ```
 
-3. Update `.env` with your configuration:
+### Access the Application
+
+- **Frontend**: http://localhost:5173
+- **API**: http://localhost:3000
+- **Database**: localhost:5432
+
+### Seed Sample Data
+
+```bash
+# Seed 20 medical products with documents
+npm run seed
+
+# (Phase 9) Generate embeddings for RAG
+npm run ingest
+```
+
+## 📦 Tech Stack
+
+### Frontend
+- **React 18** with **Vite** - Lightning-fast dev server
+- **TypeScript** - Type safety throughout
+- **TailwindCSS** - Utility-first styling
+- **shadcn/ui** - Beautiful, accessible components
+- **React Query** - Server state management
+- **React Router** - Client-side routing
+
+### Backend
+- **NestJS** - Progressive Node.js framework
+- **Prisma ORM** - Type-safe database client
+- **OpenAI API** - Embeddings + chat completions
+- **Class-validator** - DTO validation
+
+### Database
+- **PostgreSQL 16** - Robust relational database
+- **pgvector** - Vector similarity search for RAG
+
+### Infrastructure
+- **Docker Compose** - Local development orchestration
+- **npm Workspaces** - Monorepo management
+
+## 🗂️ Project Structure
+
+```
+medical-product-finder-with-rag/
+├── apps/
+│   ├── api/                          # NestJS Backend
+│   │   ├── src/
+│   │   │   ├── common/              # Shared modules (filters, pipes)
+│   │   │   ├── prisma/              # Database service
+│   │   │   ├── products/            # Product management
+│   │   │   ├── rag/                 # RAG functionality
+│   │   │   ├── app.module.ts
+│   │   │   └── main.ts
+│   │   ├── Dockerfile
+│   │   └── package.json
+│   └── frontend/                     # React Frontend
+│       ├── src/
+│       │   ├── components/
+│       │   │   ├── ui/              # shadcn/ui components
+│       │   │   ├── layout/          # Layout components
+│       │   │   └── products/        # Product components
+│       │   ├── routes/              # Page components
+│       │   ├── lib/                 # API client, utilities
+│       │   ├── types/               # TypeScript types
+│       │   ├── App.tsx
+│       │   └── main.tsx
+│       ├── Dockerfile
+│       └── package.json
+├── prisma/
+│   ├── schema.prisma                # Database models
+│   ├── migrations/                  # Migration history
+│   └── init-extensions.sql          # pgvector setup
+├── scripts/
+│   ├── seed.ts                      # Seed 20 sample products
+│   └── ingest.ts                    # Generate embeddings (Phase 9)
+├── infra/
+│   └── docker-compose.yml           # Docker services
+├── .env.example                     # Environment template
+├── package.json                     # Workspace config
+└── README.md
+```
+
+## 🔧 Available Scripts
+
+### Development
+```bash
+npm run docker:up              # Start all services (recommended)
+npm run docker:down            # Stop all services
+npm run docker:build           # Rebuild Docker images
+
+npm run dev:api                # Start API only (requires local PostgreSQL)
+npm run dev:frontend           # Start frontend only
+```
+
+### Database
+```bash
+npm run prisma:generate        # Generate Prisma Client
+npm run prisma:migrate:dev     # Run migrations
+npm run seed                   # Seed sample data
+npm run seed:clear             # Clear and reseed data
+```
+
+### Build & Deploy
+```bash
+npm run build                  # Build both apps
+npm run build:api              # Build API only
+npm run build:frontend         # Build frontend only
+```
+
+## 🌐 API Endpoints
+
+### Product Management
+- `GET /health` - Health check with database status
+- `GET /products` - List products (pagination, search, filter)
+  - Query params: `?q=keyword&category=Cardiology&page=1&limit=10`
+- `GET /products/:id` - Get single product details
+
+### RAG (Phase 9 - Coming Soon)
+- `POST /rag/query` - Ask AI questions about products
+  - Body: `{ "query": "What orthopedic products are under $500?" }`
+  - Response: Answer with citations from product documents
+
+## 🎯 Implementation Progress
+
+### ✅ Completed Phases (1-7)
+
+- [x] **Phase 1**: Project setup, Docker Compose, monorepo structure
+- [x] **Phase 2**: Database schema with pgvector, Prisma migrations
+- [x] **Phase 3**: Seed 20 medical products across 5 categories
+- [x] **Phase 4**: NestJS backend foundation with modules
+- [x] **Phase 5**: Product API endpoints with validation
+- [x] **Phase 6**: React frontend with shadcn/ui and React Query
+- [x] **Phase 7**: Product catalog and detail pages with responsive UI
+
+### 🚧 Upcoming Phases (8-10)
+
+- [ ] **Phase 8**: Search bar and category filtering
+- [ ] **Phase 9**: RAG pipeline with OpenAI embeddings
+- [ ] **Phase 10**: AWS deployment with CI/CD
+
+## 🧪 Testing
+
+### Verify Setup
+
+```bash
+# 1. Check all services are running
+docker compose -f infra/docker-compose.yml ps
+
+# 2. Test API health
+curl http://localhost:3000/health
+
+# 3. Test product list
+curl http://localhost:3000/products
+
+# 4. Verify pgvector extension
+docker exec medical-finder-db psql -U postgres -d medical_finder -c "\dx"
+```
+
+### Test the Frontend
+
+1. Open http://localhost:5173
+2. Browse the product catalog (20 products in grid layout)
+3. Click any product to view details
+4. Navigate using "Back to Catalog" button
+
+### Sample API Calls
+
+```bash
+# Get all products (paginated)
+curl http://localhost:3000/products
+
+# Search for "stent"
+curl "http://localhost:3000/products?q=stent"
+
+# Filter by Cardiology category
+curl "http://localhost:3000/products?category=Cardiology"
+
+# Get specific product
+curl http://localhost:3000/products/<product-id>
+```
+
+## 📊 Sample Data
+
+The application includes 20 seeded medical products:
+
+**Categories:**
+- **Cardiology** (4): Stents, pacemakers, ECG systems, ventricular assist devices
+- **Orthopedic** (4): Knee replacements, ankle braces, spinal cages, intramedullary nails
+- **Neurology** (4): EEG systems, deep brain stimulators, cognitive tests, nerve conduction systems
+- **Imaging** (4): MRI coils, ultrasound systems, mammography, C-arm fluoroscopy
+- **Surgical** (4): Robotic systems, electrosurgical generators, scalpels, arthroscopy cameras
+
+**Price Range:** $189 (ankle brace) to $1,250,000 (surgical robot)
+
+## 🏗️ Architecture
+
+### Clean Architecture Principles
+
+- **Separation of Concerns**: Controllers → Services → Repositories
+- **SOLID Principles**: Single responsibility, dependency injection
+- **DRY**: Reusable components and utilities
+- **Type Safety**: TypeScript throughout the stack
+
+### Data Flow
+
+```
+Frontend (React)
+    ↓ React Query
+API Client (Axios)
+    ↓ HTTP
+Backend (NestJS)
+    ↓ Prisma
+Database (PostgreSQL + pgvector)
+```
+
+### RAG Pipeline (Phase 9)
+
+```
+User Query
+    ↓ Embed with OpenAI
+Vector Search (pgvector)
+    ↓ Top-k chunks
+LLM Prompt with Context
+    ↓ OpenAI Chat Completion
+Answer + Citations
+```
+
+## 🔒 Environment Variables
+
+Required variables in `.env`:
+
 ```env
+# Database
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=medical_finder
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/medical_finder?schema=public
 
+# API
 NODE_ENV=development
 PORT=3000
 FRONTEND_URL=http://localhost:5173
 
-OPENAI_API_KEY=sk-your-openai-api-key-here
+# OpenAI (for Phase 9)
+OPENAI_API_KEY=sk-your-api-key-here
 
+# Frontend
 VITE_API_BASE_URL=http://localhost:3000
 ```
 
-4. Install dependencies:
-```bash
-npm install
-```
+## 🐛 Troubleshooting
 
-### Development with Docker Compose
-
-Start all services (database, API, frontend):
+### Docker Issues
 
 ```bash
+# Reset everything
+docker compose -f infra/docker-compose.yml down -v
 npm run docker:up
+
+# View logs
+docker compose -f infra/docker-compose.yml logs -f
+docker compose -f infra/docker-compose.yml logs api
+docker compose -f infra/docker-compose.yml logs frontend
 ```
 
-This will start:
-- PostgreSQL with pgvector on `localhost:5432`
-- NestJS API on `localhost:3000`
-- React frontend on `localhost:5173`
+### Database Issues
 
-Stop all services:
 ```bash
-npm run docker:down
-```
+# Reset database
+npx prisma migrate reset
 
-### Development without Docker
-
-1. Start PostgreSQL with pgvector (ensure it's running on port 5432)
-
-2. Generate Prisma Client:
-```bash
+# Regenerate Prisma Client
 npm run prisma:generate
+
+# Reseed data
+npm run seed:clear
 ```
 
-3. Run database migrations:
+### Frontend Issues
+
 ```bash
-npm run prisma:migrate:dev
+# Clear cache and rebuild
+rm -rf apps/frontend/node_modules/.vite
+docker compose -f infra/docker-compose.yml up --build frontend
 ```
 
-4. Start the API in development mode:
-```bash
-npm run dev:api
-```
+## 📚 Documentation
 
-5. In another terminal, start the frontend:
-```bash
-npm run dev:frontend
-```
+- **Implementation Strategy**: `docs/technical-implementation-strategy.md`
+- **Implementation Checklist**: `docs/implementation-checklist.md`
+- **Technical Design**: `docs/technical-design.md`
+- **Developer Reference**: `docs/dev-reference.md`
 
-### Database Setup
+## 🤝 Contributing
 
-1. The pgvector extension is automatically enabled via `init-extensions.sql`
+This is a portfolio project demonstrating full-stack TypeScript development with RAG capabilities. Feel free to explore the code and implementation patterns.
 
-2. Run migrations to create tables:
-```bash
-npm run prisma:migrate:dev
-```
-
-3. (Phase 3) Seed sample data:
-```bash
-npm run seed
-```
-
-4. (Phase 9) Generate embeddings:
-```bash
-npm run ingest
-```
-
-## Available Scripts
-
-### Root workspace scripts:
-- `npm run dev` - Start both API and frontend in development mode
-- `npm run dev:api` - Start only the API
-- `npm run dev:frontend` - Start only the frontend
-- `npm run build` - Build both applications
-- `npm run prisma:generate` - Generate Prisma Client
-- `npm run prisma:migrate:dev` - Run migrations in development
-- `npm run prisma:migrate:deploy` - Run migrations in production
-- `npm run seed` - Seed database with sample data
-- `npm run ingest` - Generate and store vector embeddings
-- `npm run docker:up` - Start Docker Compose services
-- `npm run docker:down` - Stop Docker Compose services
-- `npm run docker:build` - Rebuild Docker images
-
-## API Endpoints
-
-Once Phase 4+ is complete:
-
-- `GET /health` - Health check
-- `GET /products` - List products (with search & filter)
-- `GET /products/:id` - Get product details
-- `POST /rag/query` - Ask AI questions about products
-
-## Development Phases
-
-This project follows a 10-phase implementation strategy:
-
-- [x] **Phase 1**: Project Initialization and Environment Setup
-- [ ] **Phase 2**: Database Design and Schema Implementation
-- [ ] **Phase 3**: Data Seeding and Ingestion Preparation
-- [ ] **Phase 4**: Backend API Foundation
-- [ ] **Phase 5**: Product Management API
-- [ ] **Phase 6**: Frontend Setup and UI Framework
-- [ ] **Phase 7**: Product Catalog and Details UI
-- [ ] **Phase 8**: Search and Filtering Features
-- [ ] **Phase 9**: RAG Pipeline Implementation
-- [ ] **Phase 10**: Deployment, CI/CD, and Final Polish
-
-See `docs/technical-implementation-strategy.md` for detailed phase descriptions.
-
-## Testing
-
-After Phase 1, verify the setup:
-
-1. Check if all services are running:
-```bash
-docker compose -f infra/docker-compose.yml ps
-```
-
-2. Test the API health endpoint:
-```bash
-curl http://localhost:3000/health
-```
-
-3. Open the frontend in your browser:
-```
-http://localhost:5173
-```
-
-4. Check database connection:
-```bash
-docker compose -f infra/docker-compose.yml exec db psql -U postgres -d medical_finder -c "\dx"
-```
-You should see the `vector` extension listed.
-
-## Architecture
-
-The application follows clean architecture principles:
-
-- **Frontend**: Component-based React with Tailwind for styling
-- **Backend**: Modular NestJS with separation of concerns (controllers, services, DTOs)
-- **Database**: Prisma ORM with type-safe queries
-- **RAG Pipeline**: OpenAI embeddings stored in pgvector for semantic search
-
-## Contributing
-
-This is a portfolio project. See `docs/implementation-checklist.md` for development progress.
-
-## License
+## 📄 License
 
 MIT
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-Built following clean code principles (SOLID, DRY, SoC) with modern TypeScript best practices.
+Built with:
+- Clean code principles (SOLID, DRY, SoC)
+- Modern TypeScript best practices
+- shadcn/ui for beautiful components
+- OpenAI for AI capabilities
+- pgvector for vector similarity search

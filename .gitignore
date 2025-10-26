@@ -49,8 +49,6 @@ prisma/.env
 docs/
 AGENT_GUIDE.md
 
-PHASE*.md
-
 # Temporary files
 *.tmp
 *.temp
@@ -58,3 +56,4 @@ temp/
 
 # TypeScript build info
 *.tsbuildinfo
+
