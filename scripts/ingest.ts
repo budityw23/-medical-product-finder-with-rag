@@ -41,9 +41,9 @@ const EMBEDDING_CONFIG = {
 };
 
 /**
- * TODO Phase 9: Fetch chunks that need embeddings
+ * Fetch chunks that need embeddings
  *
- * This function will query the database for DocumentChunks that:
+ * This function queries the database for DocumentChunks that:
  * - Have NULL embeddings (if not --force)
  * - All chunks (if --force flag is provided)
  *
@@ -52,100 +52,111 @@ const EMBEDDING_CONFIG = {
 async function fetchChunksNeedingEmbeddings() {
   console.log('\n📋 Fetching chunks that need embeddings...');
 
-  // TODO Phase 9: Implement this query
-  // const chunks = await prisma.documentChunk.findMany({
-  //   where: isForce ? {} : { embedding: null },
-  //   include: {
-  //     document: {
-  //       include: {
-  //         product: true,
-  //       },
-  //     },
-  //   },
-  //   orderBy: { id: 'asc' },
-  // });
-
-  // STUB: Return empty array for now
-  const chunks: any[] = [];
+  // Query chunks based on --force flag
+  // Note: We can't use prisma.documentChunk.findMany with embedding filter
+  // because embedding is an Unsupported type, so we use raw SQL
+  const chunks = isForce
+    ? await prisma.$queryRaw<Array<{
+        id: string;
+        text: string;
+        documentId: string;
+        chunkIndex: number;
+      }>>`
+        SELECT id, text, "documentId", "chunkIndex"
+        FROM "DocumentChunk"
+        ORDER BY id ASC
+      `
+    : await prisma.$queryRaw<Array<{
+        id: string;
+        text: string;
+        documentId: string;
+        chunkIndex: number;
+      }>>`
+        SELECT id, text, "documentId", "chunkIndex"
+        FROM "DocumentChunk"
+        WHERE embedding IS NULL
+        ORDER BY id ASC
+      `;
 
   console.log(`   Found ${chunks.length} chunks needing embeddings`);
   return chunks;
 }
 
 /**
- * TODO Phase 9: Generate embedding for a single text chunk
+ * Generate embedding for a single text chunk with retry logic
  *
- * This function will:
- * 1. Call OpenAI's embeddings API with the text
- * 2. Extract the embedding vector from the response
- * 3. Return the vector as an array of numbers
- * 4. Implement retry logic for failed API calls
+ * This function:
+ * 1. Calls OpenAI's embeddings API with the text
+ * 2. Extracts the embedding vector from the response
+ * 3. Returns the vector as an array of numbers
+ * 4. Implements retry logic for failed API calls
  *
  * @param text - The text to generate an embedding for
+ * @param retryCount - Current retry attempt (used internally)
  * @returns The embedding vector as a number array
  */
-async function generateEmbedding(text: string): Promise<number[]> {
-  // TODO Phase 9: Implement OpenAI API call
-  // Example implementation:
-  //
-  // try {
-  //   const response = await openai.embeddings.create({
-  //     model: EMBEDDING_CONFIG.model,
-  //     input: text,
-  //   });
-  //
-  //   const embedding = response.data[0].embedding;
-  //
-  //   // Verify embedding dimension matches schema
-  //   if (embedding.length !== EMBEDDING_CONFIG.dimension) {
-  //     throw new Error(
-  //       `Embedding dimension mismatch: expected ${EMBEDDING_CONFIG.dimension}, got ${embedding.length}`
-  //     );
-  //   }
-  //
-  //   return embedding;
-  // } catch (error) {
-  //   console.error('Error generating embedding:', error);
-  //   throw error;
-  // }
+async function generateEmbedding(text: string, retryCount = 0): Promise<number[]> {
+  try {
+    const response = await openai.embeddings.create({
+      model: EMBEDDING_CONFIG.model,
+      input: text,
+    });
 
-  // STUB: Return empty array for now
-  return [];
+    const embedding = response.data[0].embedding;
+
+    // Verify embedding dimension matches schema
+    if (embedding.length !== EMBEDDING_CONFIG.dimension) {
+      throw new Error(
+        `Embedding dimension mismatch: expected ${EMBEDDING_CONFIG.dimension}, got ${embedding.length}`
+      );
+    }
+
+    return embedding;
+  } catch (error: any) {
+    // Retry logic for transient errors
+    if (retryCount < EMBEDDING_CONFIG.retryAttempts) {
+      console.warn(`   ⚠️  Retry ${retryCount + 1}/${EMBEDDING_CONFIG.retryAttempts} after error: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, EMBEDDING_CONFIG.retryDelay * (retryCount + 1)));
+      return generateEmbedding(text, retryCount + 1);
+    }
+
+    console.error('   ✗ Error generating embedding after all retries:', error.message);
+    throw error;
+  }
 }
 
 /**
- * TODO Phase 9: Update a chunk with its embedding vector
+ * Update a chunk with its embedding vector
  *
- * This function will:
- * 1. Convert the embedding array to the format pgvector expects
- * 2. Use Prisma's $executeRaw to update the vector column
- * 3. Handle any database errors
+ * This function:
+ * 1. Converts the embedding array to the format pgvector expects
+ * 2. Uses Prisma's $executeRaw to update the vector column
+ * 3. Handles any database errors
  *
  * @param chunkId - The ID of the chunk to update
  * @param embedding - The embedding vector
  */
 async function updateChunkEmbedding(chunkId: string, embedding: number[]) {
-  // TODO Phase 9: Implement database update
-  // Example implementation:
-  //
-  // const vectorString = `[${embedding.join(',')}]`;
-  //
-  // await prisma.$executeRaw`
-  //   UPDATE "DocumentChunk"
-  //   SET embedding = ${vectorString}::vector
-  //   WHERE id = ${chunkId}
-  // `;
+  // Convert embedding array to pgvector format
+  const vectorString = `[${embedding.join(',')}]`;
+
+  // Use raw SQL to update the vector column (Prisma doesn't support pgvector natively)
+  await prisma.$executeRaw`
+    UPDATE "DocumentChunk"
+    SET embedding = ${vectorString}::vector
+    WHERE id = ${chunkId}
+  `;
 }
 
 /**
- * TODO Phase 9: Process chunks in batches
+ * Process chunks in batches
  *
- * This function will:
- * 1. Split chunks into batches of size EMBEDDING_CONFIG.batchSize
- * 2. For each batch, generate embeddings concurrently
- * 3. Update the database with the embeddings
- * 4. Provide progress feedback
- * 5. Handle errors gracefully (continue processing other chunks if one fails)
+ * This function:
+ * 1. Splits chunks into batches of size EMBEDDING_CONFIG.batchSize
+ * 2. For each batch, generates embeddings sequentially (to respect rate limits)
+ * 3. Updates the database with the embeddings
+ * 4. Provides progress feedback
+ * 5. Handles errors gracefully (continues processing other chunks if one fails)
  *
  * @param chunks - Array of chunks to process
  */
@@ -157,32 +168,41 @@ async function processBatches(chunks: any[]) {
   let successCount = 0;
   let errorCount = 0;
 
-  // TODO Phase 9: Implement batch processing
-  // for (let i = 0; i < chunks.length; i += EMBEDDING_CONFIG.batchSize) {
-  //   const batch = chunks.slice(i, i + EMBEDDING_CONFIG.batchSize);
-  //   const batchNumber = Math.floor(i / EMBEDDING_CONFIG.batchSize) + 1;
-  //
-  //   console.log(`   Processing batch ${batchNumber}/${totalBatches} (${batch.length} chunks)...`);
-  //
-  //   for (const chunk of batch) {
-  //     try {
-  //       if (!isDryRun) {
-  //         const embedding = await generateEmbedding(chunk.text);
-  //         await updateChunkEmbedding(chunk.id, embedding);
-  //       }
-  //       successCount++;
-  //     } catch (error) {
-  //       console.error(`   ✗ Failed to process chunk ${chunk.id}:`, error.message);
-  //       errorCount++;
-  //     }
-  //     processedCount++;
-  //   }
-  //
-  //   // Add delay between batches to respect rate limits
-  //   if (i + EMBEDDING_CONFIG.batchSize < chunks.length) {
-  //     await new Promise(resolve => setTimeout(resolve, 100));
-  //   }
-  // }
+  // Process chunks in batches
+  for (let i = 0; i < chunks.length; i += EMBEDDING_CONFIG.batchSize) {
+    const batch = chunks.slice(i, i + EMBEDDING_CONFIG.batchSize);
+    const batchNumber = Math.floor(i / EMBEDDING_CONFIG.batchSize) + 1;
+
+    console.log(`   Processing batch ${batchNumber}/${totalBatches} (${batch.length} chunks)...`);
+
+    // Process each chunk in the batch sequentially to avoid rate limits
+    for (const chunk of batch) {
+      try {
+        if (!isDryRun) {
+          // Generate embedding using OpenAI
+          const embedding = await generateEmbedding(chunk.text);
+
+          // Store embedding in database
+          await updateChunkEmbedding(chunk.id, embedding);
+
+          console.log(`      ✓ Chunk ${chunk.id.substring(0, 8)}... (${chunk.text.substring(0, 50)}...)`);
+        } else {
+          console.log(`      [DRY RUN] Would process chunk ${chunk.id.substring(0, 8)}...`);
+        }
+        successCount++;
+      } catch (error: any) {
+        console.error(`      ✗ Failed to process chunk ${chunk.id}:`, error.message);
+        errorCount++;
+      }
+      processedCount++;
+    }
+
+    // Add delay between batches to respect rate limits
+    if (i + EMBEDDING_CONFIG.batchSize < chunks.length) {
+      console.log(`   Waiting 100ms before next batch...`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
 
   console.log('\n================================================');
   console.log(`   Total processed: ${processedCount}`);
@@ -192,25 +212,41 @@ async function processBatches(chunks: any[]) {
 }
 
 /**
- * TODO Phase 9: Verify embeddings were created correctly
+ * Verify embeddings were created correctly
  *
- * This function will:
- * 1. Query chunks with non-null embeddings
- * 2. Verify the embedding dimensions
- * 3. Display summary statistics
+ * This function:
+ * 1. Queries chunks with non-null embeddings
+ * 2. Verifies the embedding dimensions
+ * 3. Displays summary statistics
  */
 async function verifyEmbeddings() {
   console.log('\n✓ Verifying embeddings...\n');
 
-  // TODO Phase 9: Implement verification
-  // const chunksWithEmbeddings = await prisma.documentChunk.count({
-  //   where: { embedding: { not: null } },
-  // });
-  //
-  // const totalChunks = await prisma.documentChunk.count();
-  //
-  // console.log(`   Chunks with embeddings: ${chunksWithEmbeddings}/${totalChunks}`);
-  // console.log(`   Coverage: ${((chunksWithEmbeddings / totalChunks) * 100).toFixed(1)}%`);
+  // Query embedding statistics using raw SQL
+  const stats = await prisma.$queryRaw<Array<{
+    total_chunks: bigint;
+    chunks_with_embeddings: bigint;
+  }>>`
+    SELECT
+      COUNT(*) as total_chunks,
+      COUNT(embedding) as chunks_with_embeddings
+    FROM "DocumentChunk"
+  `;
+
+  const totalChunks = Number(stats[0].total_chunks);
+  const chunksWithEmbeddings = Number(stats[0].chunks_with_embeddings);
+  const coverage = totalChunks > 0 ? (chunksWithEmbeddings / totalChunks) * 100 : 0;
+
+  console.log(`   Chunks with embeddings: ${chunksWithEmbeddings}/${totalChunks}`);
+  console.log(`   Coverage: ${coverage.toFixed(1)}%`);
+
+  if (coverage === 100) {
+    console.log(`   ✓ All chunks have embeddings!`);
+  } else if (coverage > 0) {
+    console.log(`   ⚠️  Some chunks are missing embeddings`);
+  } else {
+    console.log(`   ✗ No embeddings found`);
+  }
 }
 
 /**
@@ -242,34 +278,24 @@ async function main() {
   console.log(`   Batch size: ${EMBEDDING_CONFIG.batchSize}`);
   console.log(`   Retry attempts: ${EMBEDDING_CONFIG.retryAttempts}\n`);
 
-  // TODO Phase 9: Uncomment these when implementing
-  // const chunks = await fetchChunksNeedingEmbeddings();
-  //
-  // if (chunks.length === 0) {
-  //   console.log('✅ No chunks need embedding generation. All done!');
-  //   return;
-  // }
-  //
-  // await processBatches(chunks);
-  //
-  // if (!isDryRun) {
-  //   await verifyEmbeddings();
-  // }
+  // Fetch chunks that need embeddings
+  const chunks = await fetchChunksNeedingEmbeddings();
 
-  console.log('\n⚠️  PHASE 9 FRAMEWORK ONLY');
-  console.log('   This script is currently a stub and will be fully implemented in Phase 9.');
-  console.log('   At that time, it will:');
-  console.log('   1. Fetch all document chunks without embeddings');
-  console.log('   2. Generate embeddings using OpenAI text-embedding-3-small model');
-  console.log('   3. Store the 1536-dimension vectors in pgvector');
-  console.log('   4. Provide detailed progress tracking and error handling\n');
+  if (chunks.length === 0) {
+    console.log('✅ No chunks need embedding generation. All done!');
+    await verifyEmbeddings();
+    return;
+  }
 
-  console.log('💡 Next steps for Phase 9:');
-  console.log('   1. Uncomment the TODO sections in this file');
-  console.log('   2. Implement the OpenAI API integration');
-  console.log('   3. Implement the pgvector database updates');
-  console.log('   4. Test with a small batch first');
-  console.log('   5. Run full ingestion: npm run ingest\n');
+  // Process chunks in batches
+  await processBatches(chunks);
+
+  // Verify results (skip if dry run)
+  if (!isDryRun) {
+    await verifyEmbeddings();
+  }
+
+  console.log('✅ Embedding generation complete!');
 }
 
 // Execute main function

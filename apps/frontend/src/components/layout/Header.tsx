@@ -1,6 +1,10 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { MessageSquare } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function Header() {
+  const location = useLocation();
+
   return (
     <header className="border-b">
       <div className="container mx-auto px-4 py-4">
@@ -11,9 +15,22 @@ export function Header() {
           <nav className="flex items-center space-x-4">
             <Link
               to="/"
-              className="text-sm font-medium transition-colors hover:text-primary"
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary",
+                location.pathname === "/" && "text-primary"
+              )}
             >
               Catalog
+            </Link>
+            <Link
+              to="/ask"
+              className={cn(
+                "text-sm font-medium transition-colors hover:text-primary flex items-center gap-1",
+                location.pathname === "/ask" && "text-primary"
+              )}
+            >
+              <MessageSquare className="h-4 w-4" />
+              Ask AI
             </Link>
           </nav>
         </div>

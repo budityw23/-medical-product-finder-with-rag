@@ -61,6 +61,7 @@ services:
       - ../apps/frontend/src:/app/apps/frontend/src
       - ../apps/frontend/public:/app/apps/frontend/public
       - ../apps/frontend/index.html:/app/apps/frontend/index.html
+      - ../node_modules:/app/node_modules
     depends_on:
       - api
     networks:

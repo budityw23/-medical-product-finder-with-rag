@@ -22,9 +22,10 @@
     "ingest": "tsx scripts/ingest.ts",
     "ingest:force": "tsx scripts/ingest.ts -- --force",
     "ingest:dry-run": "tsx scripts/ingest.ts -- --dry-run",
-    "docker:up": "docker compose -f infra/docker-compose.yml up",
-    "docker:down": "docker compose -f infra/docker-compose.yml down",
-    "docker:build": "docker compose -f infra/docker-compose.yml build"
+    "ingest:mock": "tsx scripts/ingest-mock.ts",
+    "docker:up": "docker compose -f infra/docker-compose.yml --env-file .env up",
+    "docker:down": "docker compose -f infra/docker-compose.yml --env-file .env down",
+    "docker:build": "docker compose -f infra/docker-compose.yml --env-file .env build"
   },
   "devDependencies": {
     "@types/node": "^20.11.16",
