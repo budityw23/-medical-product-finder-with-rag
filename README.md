@@ -7,11 +7,13 @@ A smart medical product catalog with AI-powered search using Retrieval-Augmented
 ## ✨ Features
 
 - 🏥 **Product Catalog**: Browse 20 medical devices (Cardiology, Orthopedic, Neurology, Imaging, Surgical)
-- 🔍 **Search & Filter**: Search by keyword and filter by category (Phase 8 - Coming Soon)
-- 🤖 **AI-Powered Q&A**: Ask natural language questions about products with RAG (Phase 9 - Coming Soon)
+- 🔍 **Search & Filter**: Real-time search with debouncing and category filtering with URL state management
+- 🤖 **AI-Powered Q&A**: Ask natural language questions about products with RAG using OpenAI embeddings and pgvector
 - 📱 **Responsive Design**: Mobile-first UI with shadcn/ui components
 - ⚡ **Fast & Cached**: React Query for optimized data fetching
 - 🎨 **Modern UI**: Beautiful interface with Tailwind CSS
+- 🎯 **Vector Search**: Semantic similarity search using OpenAI embeddings (1536 dimensions)
+- 📚 **Source Citations**: AI answers include product citations with similarity scores
 
 ## 🚀 Quick Start
 
@@ -39,23 +41,21 @@ npm install
 
 # 5. Start all services with Docker
 npm run docker:up
+
+# 6. Seed sample data (20 medical products)
+npm run seed
+
+# 7. Generate embeddings for RAG (requires OpenAI API key)
+npm run ingest
 ```
 
 ### Access the Application
 
 - **Frontend**: http://localhost:5173
 - **API**: http://localhost:3000
+- **API Health Check**: http://localhost:3000/health
 - **Database**: localhost:5432
-
-### Seed Sample Data
-
-```bash
-# Seed 20 medical products with documents
-npm run seed
-
-# (Phase 9) Generate embeddings for RAG
-npm run ingest
-```
+- **Ask AI (RAG)**: http://localhost:5173/ask
 
 ## 📦 Tech Stack
 
@@ -141,6 +141,9 @@ npm run prisma:generate        # Generate Prisma Client
 npm run prisma:migrate:dev     # Run migrations
 npm run seed                   # Seed sample data
 npm run seed:clear             # Clear and reseed data
+npm run ingest                 # Generate embeddings (requires OpenAI)
+npm run ingest:force           # Force regenerate all embeddings
+npm run ingest:mock            # Generate mock embeddings (testing only)
 ```
 
 ### Build & Deploy
@@ -158,14 +161,33 @@ npm run build:frontend         # Build frontend only
   - Query params: `?q=keyword&category=Cardiology&page=1&limit=10`
 - `GET /products/:id` - Get single product details
 
-### RAG (Phase 9 - Coming Soon)
+### RAG (Retrieval-Augmented Generation)
 - `POST /rag/query` - Ask AI questions about products
   - Body: `{ "query": "What orthopedic products are under $500?" }`
-  - Response: Answer with citations from product documents
+  - Response: AI-generated answer with product citations and similarity scores
+  - Example:
+    ```json
+    {
+      "answer": "Based on the provided information, the FlexiSupport Ankle Brace Pro is an orthopedic product under $500...",
+      "sources": [
+        {
+          "title": "FlexiSupport Ankle Brace Pro User Manual",
+          "snippet": "The FlexiSupport Ankle Brace Pro is a semi-rigid orthopedic support device...",
+          "productId": "cmh6a1gg...",
+          "score": 0.487
+        }
+      ],
+      "metadata": {
+        "chunksRetrieved": 5,
+        "embeddingModel": "text-embedding-3-small",
+        "completionModel": "gpt-3.5-turbo"
+      }
+    }
+    ```
 
 ## 🎯 Implementation Progress
 
-### ✅ Completed Phases (1-7)
+### ✅ Completed Phases (1-9)
 
 - [x] **Phase 1**: Project setup, Docker Compose, monorepo structure
 - [x] **Phase 2**: Database schema with pgvector, Prisma migrations
@@ -174,12 +196,12 @@ npm run build:frontend         # Build frontend only
 - [x] **Phase 5**: Product API endpoints with validation
 - [x] **Phase 6**: React frontend with shadcn/ui and React Query
 - [x] **Phase 7**: Product catalog and detail pages with responsive UI
+- [x] **Phase 8**: Search bar with debouncing, category filtering, URL state management
+- [x] **Phase 9**: RAG pipeline with OpenAI embeddings and pgvector similarity search
 
-### 🚧 Upcoming Phases (8-10)
+### 🚧 Upcoming Phases (10)
 
-- [ ] **Phase 8**: Search bar and category filtering
-- [ ] **Phase 9**: RAG pipeline with OpenAI embeddings
-- [ ] **Phase 10**: AWS deployment with CI/CD
+- [ ] **Phase 10**: AWS deployment with CI/CD (optional)
 
 ## 🧪 Testing
 
@@ -203,8 +225,10 @@ docker exec medical-finder-db psql -U postgres -d medical_finder -c "\dx"
 
 1. Open http://localhost:5173
 2. Browse the product catalog (20 products in grid layout)
-3. Click any product to view details
-4. Navigate using "Back to Catalog" button
+3. Use the search bar to find products (e.g., "stent", "knee")
+4. Filter by category using the dropdown
+5. Click any product to view details
+6. Try the "Ask AI" feature at http://localhost:5173/ask
 
 ### Sample API Calls
 
@@ -220,6 +244,16 @@ curl "http://localhost:3000/products?category=Cardiology"
 
 # Get specific product
 curl http://localhost:3000/products/<product-id>
+
+# Ask AI about products (RAG)
+curl -X POST http://localhost:3000/rag/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Tell me about cardiology devices"}'
+
+# Ask with category filter
+curl -X POST http://localhost:3000/rag/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What orthopedic products are under $500?", "category": "Orthopedic"}'
 ```
 
 ## 📊 Sample Data
@@ -256,17 +290,31 @@ Backend (NestJS)
 Database (PostgreSQL + pgvector)
 ```
 
-### RAG Pipeline (Phase 9)
+### RAG Pipeline
 
 ```
-User Query
-    ↓ Embed with OpenAI
-Vector Search (pgvector)
-    ↓ Top-k chunks
-LLM Prompt with Context
-    ↓ OpenAI Chat Completion
-Answer + Citations
+User Query ("Tell me about cardiology devices")
+    ↓
+Generate Query Embedding (OpenAI text-embedding-3-small)
+    ↓
+Vector Similarity Search (pgvector cosine distance)
+    ↓
+Retrieve Top-5 Most Similar Document Chunks (threshold: 0.3)
+    ↓
+Build Context from Retrieved Chunks
+    ↓
+Generate Answer (OpenAI GPT-3.5-turbo) with Context
+    ↓
+Return Answer + Source Citations + Similarity Scores
 ```
+
+**Key Features:**
+- **Embedding Model**: text-embedding-3-small (1536 dimensions)
+- **Completion Model**: gpt-3.5-turbo
+- **Similarity Metric**: Cosine distance via pgvector `<=>` operator
+- **Top-K Retrieval**: 5 most relevant chunks
+- **Similarity Threshold**: 0.3 (configurable)
+- **Source Citations**: Each answer includes product references with similarity scores
 
 ## 🔒 Environment Variables
 
@@ -284,7 +332,7 @@ NODE_ENV=development
 PORT=3000
 FRONTEND_URL=http://localhost:5173
 
-# OpenAI (for Phase 9)
+# OpenAI (required for RAG features)
 OPENAI_API_KEY=sk-your-api-key-here
 
 # Frontend
@@ -325,6 +373,22 @@ npm run seed:clear
 # Clear cache and rebuild
 rm -rf apps/frontend/node_modules/.vite
 docker compose -f infra/docker-compose.yml up --build frontend
+```
+
+### RAG/OpenAI Issues
+
+```bash
+# Check if OpenAI API key is loaded
+docker compose -f infra/docker-compose.yml exec api printenv OPENAI_API_KEY
+
+# Check embeddings in database
+docker compose -f infra/docker-compose.yml exec db psql -U postgres -d medical_finder -c "SELECT COUNT(*) FROM \"DocumentChunk\" WHERE embedding IS NOT NULL;"
+
+# Regenerate embeddings with force flag
+npm run ingest:force
+
+# If quota exceeded, check billing at https://platform.openai.com/account/billing
+# Verify API key has sufficient credits
 ```
 
 ## 📚 Documentation

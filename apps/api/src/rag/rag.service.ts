@@ -21,9 +21,9 @@ export class RagService {
   // Configuration constants
   private readonly EMBEDDING_MODEL = 'text-embedding-3-small';
   private readonly EMBEDDING_DIMENSION = 1536;
-  private readonly CHAT_MODEL = 'gpt-3.5-turbo';
+  private readonly CHAT_MODEL = 'gpt-4o'; // GPT-4o for better quality answers
   private readonly TOP_K = 5; // Number of chunks to retrieve
-  private readonly SIMILARITY_THRESHOLD = 0.3; // Minimum similarity score (lowered for testing)
+  private readonly SIMILARITY_THRESHOLD = 0.3; // Minimum similarity score
 
   constructor(
     private readonly prisma: PrismaService,
@@ -80,20 +80,23 @@ export class RagService {
         };
       }
 
-      // Step 4: Build context from retrieved chunks
-      const context = this.buildContext(retrievedChunks);
+      // Step 4: Deduplicate chunks by productId (keep highest score per product)
+      const uniqueChunks = this.deduplicateChunks(retrievedChunks);
 
-      // Step 5: Generate answer using OpenAI chat completion
+      // Step 5: Build context from deduplicated chunks
+      const context = this.buildContext(uniqueChunks);
+
+      // Step 6: Generate answer using OpenAI chat completion
       const answer = await this.generateAnswer(userQuery, context);
 
-      // Step 6: Format sources for response
-      const sources = this.formatSources(retrievedChunks);
+      // Step 7: Format sources for response (already deduplicated)
+      const sources = this.formatSources(uniqueChunks);
 
       return {
         answer,
         sources,
         metadata: {
-          chunksRetrieved: retrievedChunks.length,
+          chunksRetrieved: uniqueChunks.length,
           embeddingModel: this.EMBEDDING_MODEL,
           completionModel: this.CHAT_MODEL,
         },
@@ -149,6 +152,9 @@ export class RagService {
       documentId: string;
       title: string;
       productId: string | null;
+      productName: string | null;
+      productPrice: number | null;
+      productCategory: string | null;
       distance: number;
     }>
   > {
@@ -173,6 +179,9 @@ export class RagService {
           documentId: string;
           title: string;
           productId: string | null;
+          productName: string | null;
+          productPrice: number | null;
+          productCategory: string | null;
           distance: number;
         }>
       >`
@@ -182,6 +191,9 @@ export class RagService {
           c."documentId",
           d.title,
           d."productId",
+          p.name as "productName",
+          p.price as "productPrice",
+          p.category as "productCategory",
           1 - (c.embedding <=> ${vectorString}::vector) AS distance
         FROM "DocumentChunk" c
         JOIN "Document" d ON d.id = c."documentId"
@@ -200,6 +212,9 @@ export class RagService {
           documentId: string;
           title: string;
           productId: string | null;
+          productName: string | null;
+          productPrice: number | null;
+          productCategory: string | null;
           distance: number;
         }>
       >`
@@ -209,9 +224,13 @@ export class RagService {
           c."documentId",
           d.title,
           d."productId",
+          p.name as "productName",
+          p.price as "productPrice",
+          p.category as "productCategory",
           1 - (c.embedding <=> ${vectorString}::vector) AS distance
         FROM "DocumentChunk" c
         JOIN "Document" d ON d.id = c."documentId"
+        LEFT JOIN "Product" p ON p.id = d."productId"
         WHERE c.embedding IS NOT NULL
         ORDER BY c.embedding <=> ${vectorString}::vector
         LIMIT ${this.TOP_K}
@@ -231,19 +250,60 @@ export class RagService {
   }
 
   /**
-   * Build context string from retrieved chunks
+   * Deduplicate chunks by productId, keeping only the highest scoring chunk per product
    *
    * @param chunks - Retrieved document chunks
-   * @returns Formatted context string
+   * @returns Deduplicated array with one chunk per product
+   */
+  private deduplicateChunks<T extends { productId: string | null }>(
+    chunks: T[],
+  ): T[] {
+    const seenProducts = new Set<string>();
+    return chunks.filter((chunk) => {
+      if (!chunk.productId) return true; // Keep chunks without productId
+
+      if (seenProducts.has(chunk.productId)) {
+        return false; // Skip duplicate product
+      }
+
+      seenProducts.add(chunk.productId);
+      return true;
+    });
+  }
+
+  /**
+   * Build context string from retrieved chunks
+   *
+   * @param chunks - Retrieved document chunks with product metadata
+   * @returns Formatted context string with pricing information
    */
   private buildContext(
-    chunks: Array<{ title: string; text: string; distance: number }>,
+    chunks: Array<{
+      title: string;
+      text: string;
+      productName: string | null;
+      productPrice: number | null;
+      productCategory: string | null;
+      distance: number;
+    }>,
   ): string {
     return chunks
-      .map(
-        (chunk, index) =>
-          `[${index + 1}] ${chunk.title}: ${chunk.text}`,
-      )
+      .map((chunk, index) => {
+        let context = `[${index + 1}] ${chunk.title}: ${chunk.text}`;
+
+        // Add product metadata if available
+        if (chunk.productName) {
+          context += `\n   Product: ${chunk.productName}`;
+          if (chunk.productCategory) {
+            context += ` (${chunk.productCategory})`;
+          }
+          if (chunk.productPrice !== null) {
+            context += ` - Price: $${Number(chunk.productPrice).toFixed(2)}`;
+          }
+        }
+
+        return context;
+      })
       .join('\n\n');
   }
 
@@ -265,7 +325,9 @@ export class RagService {
 Answer questions based ONLY on the provided product information context.
 If the answer is not in the context, say "I don't have enough information to answer that question."
 Always cite your sources by mentioning the product names.
-Be concise and helpful. Provide specific details like prices, categories, and features when available.`;
+Be concise and helpful. Provide specific details like prices, categories, and features when available.
+When answering questions about pricing, always include the exact prices from the context if available.
+For price comparisons or ranges, list all relevant products with their prices.`;
 
     // User prompt with context
     const userPromptWithContext = `Context:
@@ -298,7 +360,7 @@ Answer the question based on the context above, and cite which sources you used.
   /**
    * Format retrieved chunks as source citations
    *
-   * @param chunks - Retrieved document chunks
+   * @param chunks - Retrieved document chunks (should already be deduplicated)
    * @returns Array of source DTOs
    */
   private formatSources(
