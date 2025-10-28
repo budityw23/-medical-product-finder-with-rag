@@ -71,4 +71,14 @@ export class ProductsService {
 
     return ProductResponseDto.fromProduct(product);
   }
+
+  async getCategories(): Promise<string[]> {
+    const categories = await this.prisma.product.findMany({
+      select: { category: true },
+      distinct: ['category'],
+      orderBy: { category: 'asc' },
+    });
+
+    return categories.map((c) => c.category);
+  }
 }

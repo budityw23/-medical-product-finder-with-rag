@@ -6,6 +6,9 @@ import { FilterBar } from '@/components/products/FilterBar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Info } from 'lucide-react';
 import { useProductFilters } from '@/hooks';
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export function CatalogPage() {
   const {
@@ -18,15 +21,24 @@ export function CatalogPage() {
     hasActiveFilters,
   } = useProductFilters();
 
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [q, category]);
+
   // Convert 'all' to undefined for API
   const apiCategory = category === 'all' ? undefined : category;
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['products', { q, category: apiCategory }],
-    queryFn: () => productsApi.getProducts({ q, category: apiCategory }),
+    queryKey: ['products', { q, category: apiCategory, page, limit }],
+    queryFn: () => productsApi.getProducts({ q, category: apiCategory, page, limit }),
   });
 
   const hasNoResults = !isLoading && data?.data.length === 0;
+  const totalPages = data ? Math.ceil(data.totalCount / limit) : 0;
 
   return (
     <div>
@@ -68,7 +80,44 @@ export function CatalogPage() {
         </Alert>
       )}
 
-      {data && data.data.length > 0 && <ProductGrid products={data.data} />}
+      {data && data.data.length > 0 && (
+        <>
+          <ProductGrid products={data.data} />
+
+          {totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  ({data.totalCount} products)
+                </span>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

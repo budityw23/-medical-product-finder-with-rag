@@ -9,4 +9,8 @@ export const productsApi = {
   getProductById: async (id: string): Promise<Product> => {
     return api.get<Product>(`/products/${id}`);
   },
+
+  getCategories: async (): Promise<string[]> => {
+    return api.get<string[]>('/products/categories/list');
+  },
 };
